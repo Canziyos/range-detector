@@ -1,4 +1,4 @@
-﻿using Microsoft.Extensions.DependencyInjection;
+﻿﻿using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using System;
@@ -11,7 +11,7 @@ public static class Program
 
     public static async Task Main(string[] args)
     {
-        // ── build the host first ─────────────────────────────────────────
+        // build the host first.
         var builder = Host.CreateDefaultBuilder(args)
             .ConfigureLogging(b =>
             {
@@ -31,10 +31,10 @@ public static class Program
 
         _appHost = builder.Build();
 
-        // ── heartbeat + OFF-checker task ────────────────────────────────
+        // heartbeat + OFF-checker task.
         _ = Task.Run(async () =>
         {
-            // Resolve the PulseProcessor singleton from DI
+            // Resolve the PulseProcessor singleton from DI.
             var pulse = (PulseProcessor)_appHost.Services
                                                .GetRequiredService<IMessageHandler>();
 
@@ -56,7 +56,7 @@ public static class Program
             }
         });
 
-        // ── run the host (graceful Ctrl-C shutdown) ─────────────────────
+        // run the host (graceful Ctrl-C shutdown).
         await _appHost.RunAsync();
     }
 }

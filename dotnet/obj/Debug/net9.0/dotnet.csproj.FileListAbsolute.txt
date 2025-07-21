@@ -1,0 +1,5 @@
+C:\Projects\GitHub_projects\range-detector\dotnet\obj\Debug\net9.0\dotnet.GeneratedMSBuildEditorConfig.editorconfig
+C:\Projects\GitHub_projects\range-detector\dotnet\obj\Debug\net9.0\dotnet.AssemblyInfoInputs.cache
+C:\Projects\GitHub_projects\range-detector\dotnet\obj\Debug\net9.0\dotnet.AssemblyInfo.cs
+C:\Projects\GitHub_projects\range-detector\dotnet\obj\Debug\net9.0\dotnet.csproj.CoreCompileInputs.cache
+C:\Projects\GitHub_projects\range-detector\dotnet\obj\Debug\net9.0\dotnet.sourcelink.json

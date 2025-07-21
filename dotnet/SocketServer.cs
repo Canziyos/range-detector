@@ -46,7 +46,7 @@ public sealed class SocketServer : BackgroundService
                 if (completed != acceptTask) break;
                 var tcpClient = acceptTask.Result;
 #endif
-                _ = HandleClientAsync(tcpClient, stop);   // fire-and-forget
+                _ = HandleClientAsync(tcpClient, stop);   // fire-and-forget.
             }
         }
         finally
@@ -58,11 +58,11 @@ public sealed class SocketServer : BackgroundService
 
     private async Task HandleClientAsync(TcpClient client, CancellationToken stop)
     {
-        // ── learn & cache Pico’s IP ─────────────────────────────────
+        // learn & cache Pico’s IP.
         var remoteIp = ((IPEndPoint)client.Client.RemoteEndPoint!).Address.ToString();
         PicoEndpoint.CurrentIp = remoteIp;
         Console.WriteLine($"[SocketServer] Pico at {remoteIp}");
-        // ────────────────────────────────────────────────────────────
+  
 
         Console.WriteLine("[SocketServer] Client connected.");
 
