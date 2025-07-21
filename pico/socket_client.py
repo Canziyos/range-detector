@@ -1,17 +1,14 @@
 import socket, gc, time
 
-# ─────────────────────────────────────────
-# Config (override from main if you like)
-# ─────────────────────────────────────────
+
 DATA_HOST = "192.168.10.220"
 DATA_PORT = 4321
-RETRY_MS  = 20_000           # ← 20-second back-off (was 5 000)
+RETRY_MS  = 20_000           # 20-second back-off.
 
 _last_try = 0                # global reconnect timer
 
-# ─────────────────────────────────────────
+
 # Enable TCP keep-alive (best-effort)
-# ─────────────────────────────────────────
 def enable_keepalive(sock):
     opt = getattr(socket, "SO_KEEPALIVE", None)
     if opt is not None:
@@ -20,9 +17,7 @@ def enable_keepalive(sock):
         except OSError:
             pass
 
-# ─────────────────────────────────────────
 # Connection + back-off
-# ─────────────────────────────────────────
 def get_data_client():
     global _last_try
     now = time.ticks_ms()
@@ -48,12 +43,10 @@ def get_data_client():
         gc.collect()
         return None
 
-# ─────────────────────────────────────────
 # Send pulse data
-# ─────────────────────────────────────────
-def send_pulse(sock, pulse_us):
+def send_distance(sock, dist_mm):
     try:
-        sock.send("pulse: %d\n" % pulse_us)
+        sock.send("distance: %d\n" % dist_mm)
         return True
     except OSError as ex:
         print("DATA send error:", ex)
