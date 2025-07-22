@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 public static class SocketClient
 {
-    private static TcpClient?     _client;
+    private static TcpClient? _client;
     private static NetworkStream? _stream;
     private static readonly SemaphoreSlim Gate = new(1, 1);
 

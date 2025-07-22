@@ -1,6 +1,9 @@
 ﻿﻿using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Hosting;
+using System.Reflection;
 using System;
 using System.Threading.Tasks;
 
@@ -18,15 +21,35 @@ public static class Program
                 b.ClearProviders();
                 b.AddSimpleConsole(o =>
                 {
-                    o.SingleLine      = true;
+                    o.SingleLine = true;
                     o.TimestampFormat = "HH:mm:ss ";
-                    o.IncludeScopes   = false;
+                    o.IncludeScopes = false;
                 });
+                b.SetMinimumLevel(LogLevel.Warning);
             })
             .ConfigureServices(services =>
             {
                 services.AddSingleton<IMessageHandler, PulseProcessor>();
                 services.AddHostedService<SocketServer>();
+                services.AddSingleton<DistanceState>();
+                services.AddControllers().AddApplicationPart(Assembly.GetExecutingAssembly());
+            })
+            .ConfigureWebHost(web =>
+            {
+                web.UseWebRoot("wwwroot");
+                web.UseUrls("http://*:5000");
+                web.UseKestrel();
+                web.Configure(app =>
+                {
+                    app.UseDefaultFiles();
+                    app.UseStaticFiles();
+                    app.UseRouting();
+                    app.UseEndpoints(endpoint =>
+                    {
+                        endpoint.MapControllers();
+                    });
+
+                });
             });
 
         _appHost = builder.Build();

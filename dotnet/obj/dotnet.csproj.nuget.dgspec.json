@@ -43,6 +43,14 @@
         "net8.0": {
           "targetAlias": "net8.0",
           "dependencies": {
+            "Microsoft.AspNetCore.Mvc": {
+              "target": "Package",
+              "version": "[2.3.0, )"
+            },
+            "Microsoft.AspNetCore.StaticFiles": {
+              "target": "Package",
+              "version": "[2.2.0, )"
+            },
             "Microsoft.Extensions.Hosting": {
               "target": "Package",
               "version": "[8.0.0, )"
@@ -64,6 +72,9 @@
           "assetTargetFallback": true,
           "warn": true,
           "frameworkReferences": {
+            "Microsoft.AspNetCore.App": {
+              "privateAssets": "none"
+            },
             "Microsoft.NETCore.App": {
               "privateAssets": "all"
             }

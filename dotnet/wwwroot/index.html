@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Status Control</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', sans-serif;
+            background-color: #f4f4f4;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+        }
+
+        h1 {
+            font-size: 2.5em;
+            margin-bottom: 20px;
+            color: #333;
+        }
+
+        .button {
+            padding: 12px 24px;
+            font-size: 1.2em;
+            border: none;
+            border-radius: 8px;
+            background-color: #007BFF;
+            color: white;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+
+        .button:hover {
+            background-color: #0056b3;
+        }
+
+        #distance {
+            font-size: 2.2em;
+            font-weight: 600;
+            margin-top: 30px;
+            color: #444;
+            text-shadow: 0 0 5px rgba(0, 0, 0, 0.1);
+        }
+    </style>
+</head>
+<body>
+    <h1>Pico Range Control</h1>
+    <button class="button" id="on_cmd">Start Measurements</button>
+    <div id="distance">Distance: N/A</div>
+
+    <script>
+        const button = document.getElementById("on_cmd");
+        const distEl = document.getElementById("distance");
+
+        button.addEventListener("click", () => {
+            fetch("/status/sendcmd?cmd=START", { method: "POST" })
+                .then(res => {
+                    if (res.ok) {
+                        alert("Command Sent!");
+                    } else {
+                        alert("Command Failed!");
+                    }
+                })
+                .catch(err => {
+                    alert("Error: " + err.message);
+                });
+        });
+
+        // Poll the backend every second
+        setInterval(() => {
+            fetch("/status/getstatus")
+                .then(res => res.json())
+                .then(data => {
+                    distEl.innerText = `Distance: ${data.measured} mm`;
+                })
+                .catch(() => {
+                    distEl.innerText = "Distance: N/A";
+                });
+        }, 1000);
+    </script>
+</body>
+</html>

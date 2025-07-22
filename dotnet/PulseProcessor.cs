@@ -11,19 +11,27 @@ public sealed class PulseProcessor : IMessageHandler
     private DateTime _lastFarEnough = DateTime.MinValue;
     private DateTime _nextRetry = DateTime.MinValue;
     private bool _offSent = false;
+    private readonly DistanceState _distState;
+    public PulseProcessor(DistanceState dist)
+    {
+        _distState = dist;
+    }
 
     public Task HandleLineAsync(string line)
     {
         if (!line.StartsWith("distance:", StringComparison.OrdinalIgnoreCase))
             return Task.CompletedTask;
+
         if (!int.TryParse(line.AsSpan(9).Trim(), out int mm))
             return Task.CompletedTask;
 
         Console.WriteLine($"distance = {mm} mm");
+        _distState.lastDistMeasured = mm;
+        _distState.LastUpdatedUtc = DateTime.UtcNow;
 
         var now = DateTime.UtcNow;
         if (mm <= THRESHOLD_MM) _lastSeenClose = now;
-        else                    _lastFarEnough = now;
+        else _lastFarEnough = now;
 
         return Task.CompletedTask;
     }
