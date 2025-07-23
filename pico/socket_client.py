@@ -1,58 +1,65 @@
-import socket, gc, time
+# socket_client.py – simple 200 ms blocking connect with watchdog retry
+import socket, time, gc, errno
+from utils import dbg
 
+DATA_HOST  = "192.168.10.220"     # your PC’s IP
+DATA_PORT  = 4321
+_RETRY_SEC = 5                    # wait 5 s before another attempt
 
-DATA_HOST = "192.168.10.220"
-DATA_PORT = 4321
-RETRY_MS  = 20_000           # 20-second back-off.
+_last_try  = 0                    # ms timestamp
+_stream    = None                 # active socket (or None)
 
-_last_try = 0                # global reconnect timer
+# ---------------------------------------------------------------------
+def _try_connect() -> bool:
+    """Attempt a blocking connect with a 200 ms timeout."""
+    global _stream, _last_try
+    if _stream:                   # already up
+        return True
 
-
-# Enable TCP keep-alive (best-effort)
-def enable_keepalive(sock):
-    opt = getattr(socket, "SO_KEEPALIVE", None)
-    if opt is not None:
-        try:
-            sock.setsockopt(socket.SOL_SOCKET, opt, 1)
-        except OSError:
-            pass
-
-# Connection + back-off
-def get_data_client():
-    global _last_try
     now = time.ticks_ms()
-    if time.ticks_diff(now, _last_try) < RETRY_MS:
-        return None                           # still in cool-down
+    if time.ticks_diff(now, _last_try) < _RETRY_SEC * 1000:
+        return False              # still in back-off window
     _last_try = now
 
     try:
         s = socket.socket()
-        s.settimeout(3)                       # 3-s dial timeout
-        enable_keepalive(s)
-        s.connect((DATA_HOST, DATA_PORT))     # blocking connect
-        s.setblocking(False)                  # non-blocking afterwards
-        s.settimeout(None)
-        print("DATA socket connected to", DATA_HOST, ":", DATA_PORT)
-        return s
+        s.settimeout(0.2)         # 200 ms max stall
+        s.connect((DATA_HOST, DATA_PORT))
+        s.settimeout(None)        # back to blocking
+        s.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+        _stream = s
+        dbg("DATA connected")
+        return True
     except OSError as ex:
-        print("DATA connect failed:", ex)
+        dbg("DATA connect error:", ex)
         try:
             s.close()
         except Exception:
             pass
-        gc.collect()
-        return None
+        _stream = None
+        return False
 
-# Send pulse data
-def send_distance(sock, dist_mm):
+# ---------------------------------------------------------------------
+def _ensure_connection():
+    """Call every loop; maintains the socket."""
+    _try_connect()                # success / failure handled internally
+    return _stream
+
+# ---------------------------------------------------------------------
+def write_line(msg: str):
+    """Fire-and-forget send.  Drops payload if link is down."""
+    global _stream
+    if _stream is None:
+        return False
     try:
-        sock.send("distance: %d\n" % dist_mm)
+        _stream.write((msg + "\n").encode())
         return True
     except OSError as ex:
-        print("DATA send error:", ex)
+        dbg("DATA send error:", ex)
         try:
-            sock.close()
+            _stream.close()
         except Exception:
             pass
         gc.collect()
+        _stream = None
         return False

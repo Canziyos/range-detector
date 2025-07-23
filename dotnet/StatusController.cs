@@ -28,19 +28,10 @@ public class StatusController : ControllerBase
     [HttpPost]
     public async Task<IActionResult> SendCmd(string cmd)
     {
-        if (string.IsNullOrEmpty(PicoEndpoint.CurrentIp))
-        {
-            return BadRequest("Current IP is not set.");
-        }
-
-        bool result = await SocketClient.Send(cmd, PicoEndpoint.CurrentIp);
-        if (result)
-        {
-            return Ok(new { success = true });
-        }
-        else
-        {
-            return StatusCode(500, new { success = false, message = "Failed to send command." });
-        }
+        string host = PicoEndpoint.CurrentIp ?? "192.168.10.223"; // fallback.
+        bool ok = await SocketClient.Send(cmd, host);
+        return ok
+            ? Ok(new { success = true })
+            : StatusCode(500, "Send failed.");
     }
 }
