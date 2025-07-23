@@ -5,78 +5,145 @@
     <style>
         body {
             font-family: 'Segoe UI', sans-serif;
-            background-color: #f4f4f4;
+            background: linear-gradient(135deg, #f0f4f8, #d9e2ec);
             display: flex;
-            flex-direction: column;
             align-items: center;
             justify-content: center;
             height: 100vh;
             margin: 0;
         }
 
+        /* Card container for all content */
+        .card {
+            background: #fff;
+            padding: 30px 50px;
+            border-radius: 16px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+            text-align: center;
+            width: 320px;
+        }
+
         h1 {
-            font-size: 2.5em;
+            font-size: 2em;
             margin-bottom: 20px;
             color: #333;
         }
 
+        /* Button group */
+        .btn-group {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            margin-bottom: 20px;
+        }
+
         .button {
-            padding: 12px 24px;
-            font-size: 1.2em;
+            flex: 1;
+            padding: 12px;
+            font-size: 1em;
             border: none;
             border-radius: 8px;
             background-color: #007BFF;
             color: white;
             cursor: pointer;
-            transition: background-color 0.3s ease;
+            transition: transform 0.2s ease, background-color 0.3s ease;
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
         }
 
         .button:hover {
             background-color: #0056b3;
+            transform: translateY(-2px);
         }
 
         #distance {
-            font-size: 2.2em;
+            font-size: 1.6em;
             font-weight: 600;
-            margin-top: 30px;
+            margin-top: 10px;
             color: #444;
             text-shadow: 0 0 5px rgba(0, 0, 0, 0.1);
+        }
+
+        /* State indicator colors */
+        #state {
+            font-size: 1.3em;
+            margin-top: 8px;
+            font-weight: bold;
+        }
+
+        #state.running {
+            color: #28a745; /* green */
+        }
+
+        #state.stopped {
+            color: #dc3545; /* red */
         }
     </style>
 </head>
 <body>
-    <h1>Pico Range Control</h1>
-    <button class="button" id="on_cmd">Start Measurements</button>
-    <div id="distance">Distance: N/A</div>
+    <div class="card">
+        <h1>Pico Range Control</h1>
+        <div class="btn-group">
+            <button class="button" id="on_cmd">Start Sensing</button>
+            <button class="button" id="off_cmd">Terminate Sensing</button>
+        </div>
+        <div id="distance">Distance: N/A</div>
+        <div id="state">State: Unknown</div>
+    </div>
 
     <script>
-        const button = document.getElementById("on_cmd");
+        const s_btn = document.getElementById("on_cmd");
+        const e_btn = document.getElementById("off_cmd");
         const distEl = document.getElementById("distance");
+        const stateEl = document.getElementById("state");
 
-        button.addEventListener("click", () => {
+        // Handle START button
+        s_btn.addEventListener("click", () => {
             fetch("/status/sendcmd?cmd=START", { method: "POST" })
                 .then(res => {
-                    if (res.ok) {
-                        alert("Command Sent!");
-                    } else {
-                        alert("Command Failed!");
-                    }
+                    alert(res.ok ? "Success: Command Sent!" : "Failure: Command not sent!");
                 })
                 .catch(err => {
                     alert("Error: " + err.message);
                 });
         });
 
-        // Poll the backend every second
+        // Handle STOP button
+        e_btn.addEventListener("click", () => {
+            fetch("/status/sendcmd?cmd=STOP", { method: "POST" })
+                .then(res => {
+                    alert(res.ok ? "Success: Command sent!" : "Failure: Command not sent");
+                })
+                .catch(err => {
+                    alert("Error: " + err.message);
+                });
+        });
+
+        // Poll backend every second for status updates
         setInterval(() => {
             fetch("/status/getstatus")
                 .then(res => res.json())
                 .then(data => {
+                    // Update distance display
                     distEl.innerText = `Distance: ${data.measured} mm`;
+
+                    // Calculate freshness of data
+                    const updatedMs = new Date(data.updated).getTime();
+                    const nowMs = Date.now();
+                    const age = nowMs - updatedMs;
+
+                    // Update state text + color class
+                    if (age > 2000) {
+                        stateEl.innerText = "State: Stopped";
+                        stateEl.className = "stopped";
+                    } else {
+                        stateEl.innerText = "State: Running";
+                        stateEl.className = "running";
+                    }
                 })
                 .catch(() => {
                     distEl.innerText = "Distance: N/A";
+                    stateEl.innerText = "State: Unknown";
+                    stateEl.className = "";
                 });
         }, 1000);
     </script>
