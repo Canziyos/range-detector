@@ -1,0 +1,29 @@
+# 1. Python / MicroPython
+# Always use LF endings for Python. (for pico)
+*.py text eol=lf
+
+# 2. C# / .NET source files
+# Normalize C# and related text files
+*.cs text
+*.csproj text
+*.sln text
+
+# 3. Web files (HTML, CSS, JS, JSON)
+*.html text
+*.css text
+*.js text
+*.json text
+
+# 4. Mark binaries as binary (no diffs)
+*.dll binary
+*.exe binary
+*.pdb binary
+*.bin binary
+*.mpy binary
+*.elf binary
+
+# 5. Misc text normalization
+*.md text
+*.yml text
+*.yaml text
+*.txt text
