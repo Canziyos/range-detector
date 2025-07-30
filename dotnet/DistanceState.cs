@@ -4,6 +4,7 @@ using System;
 
 public class DistanceState
 {
-    public int lastDistMeasured{ get; set; }
-    public DateTime LastUpdatedUtc{ get; set; }
+    public int lastDistMeasured { get; set; }
+    public DateTime LastUpdatedUtc { get; set; }
+    public bool alertActive { get; set; }
 }

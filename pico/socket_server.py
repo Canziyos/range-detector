@@ -4,8 +4,8 @@ import socket, select, errno, time
 import utils
 from utils import dbg
 
-# ----------------------------------------------- #
-# Ping bookkeeping (main.py reads these helpers). #
+
+# Ping bookkeeping (main.py reads these helpers).
 # ----------------------------------------------- #
 _last_ping_ms = 0
 
@@ -16,9 +16,9 @@ def update_ping_time():
 def get_last_ping_time():
     return _last_ping_ms
 
-# ----------------------------------------------------------------- #
-# Server-socket creation (call once from main.py).                  #
-# ------------------------------------------------------------------#
+
+# Server-socket creation (call once from main.py).
+# ------------------------------------------------#
 def make_cmd_server(port: int = 1234):
     srv = socket.socket()
     srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -31,10 +31,9 @@ def make_cmd_server(port: int = 1234):
 # One persistent client socket.
 _sock = None
 
-# ------------------------------------------------------------------ #
-# Poll each main-loop tick.                                          #
-# ------------------------------------------------------------------ #
-def poll_command(server_sock, pwm_led, ping_led):
+# Poll each main-loop tick.
+# ------------------------ #
+def poll_command(server_sock, ping_led):
     """
     Accept a connection if none is active, then read and act on
     any command lines. Drops the socket on error and waits for the
@@ -71,12 +70,12 @@ def poll_command(server_sock, pwm_led, ping_led):
             cmd = raw.strip().upper()
 
             if cmd == "START":
-                utils.sensing_active = True
-                dbg("START => sensing_active = True")
+                utils.sys_on = True
+                dbg("START => System up remotely")
 
             elif cmd == "STOP":
-                utils.sensing_active = False
-                dbg("STOP => sensing_active = False")
+                utils.sys_on = False
+                dbg("STOP => System down remotely")
 
             elif cmd == "PING":
                 update_ping_time()
@@ -87,20 +86,20 @@ def poll_command(server_sock, pwm_led, ping_led):
             # --- future extensions.
             # elif cmd == "LOCK":
             #     ut.buttons_enabled = False
-            #     dbg("LOCK → buttons disabled")
+            #     dbg("LOCK => buttons disabled")
             # elif cmd == "UNLOCK":
             #     ut.buttons_enabled = True
-            #     dbg("UNLOCK → buttons enabled")
+            #     dbg("UNLOCK => buttons enabled")
             # elif cmd.startswith("SET MIN "):
             #     try:
             #         ut.min_dist = int(cmd.split()[2])
-            #         dbg("SET MIN →", main.min_dist, "mm")
+            #         dbg("SET MIN =>", main.min_dist, "mm")
             #     except (ValueError, IndexError):
             #         dbg("Bad SET MIN cmd:", cmd)
             # elif cmd.startswith("SET MAX "):
             #     try:
             #         ut.max_dist = int(cmd.split()[2])
-            #         dbg("SET MAX →", main.max_dist, "mm")
+            #         dbg("SET MAX =>", main.max_dist, "mm")
             #     except (ValueError, IndexError):
             #         dbg("Bad SET MAX cmd:", cmd)
 

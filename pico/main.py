@@ -1,17 +1,26 @@
 # main.py – Pico firmware with Wi-Fi watchdog.
 import boot
+import machine
 import gc, network
-from time import ticks_ms, ticks_diff, sleep_ms, sleep_us
-from machine import time_pulse_us, Pin, PWM
+from time import ticks_ms, ticks_diff, sleep_ms
+from machine import Pin
 import socket_client as sc
 import socket_server as ss
-from utils import dbg
+from utils import dbg, green_irq, red_irq, pir_irq
 import utils
+
+# SenseFuzzPWM imports
+from sensefuzzpwm.input.sensors import PIR, Ultrasonic
+from sensefuzzpwm.input.interaction import MotionDistanceManager
+from sensefuzzpwm.output.pwm import PWM
+from sensefuzzpwm.fuzzy_logic.fuzzy_core import FuzzyCore
+from sensefuzzpwm.fuzzy_logic.fuzzy_config import input_sets, output_sets, output_ranges, rules
+
 ssid = boot.SSID
 pwd = boot.PWD
+
 # ------------------------------------------------------------------ #
-# Wi-Fi watchdog: reconnect without blocking main loop.              #
-# ------------------------------------------------------------------ #
+# Wi-Fi watchdog: reconnect without blocking main loop.
 _last_wifi_try = 0  # ms timestamp of last reconnect attempt.
 
 def wifi_watchdog(ssid: str, pwd: str, retry_ms: int = 10_000):
@@ -32,57 +41,45 @@ def wifi_watchdog(ssid: str, pwd: str, retry_ms: int = 10_000):
     wlan.connect(ssid, pwd)
     dbg("Wi-Fi watchdog: attempting reconnect")
 
-# ------------------------------------------------------------------ #
-# data watchdog: reconnect without blocking main loop.              #
+# Data watchdog: maintain socket connection.
 # ------------------------------------------------------------------ #
 def data_watchdog():
-    """ Maintain the data socket conection,
-    (none-blocking, uses back-off)"""
+    """Maintain the data socket connection (non-blocking)."""
     sc._ensure_connection()
 
-# ------------------------------------------------------------------ #
-# GPIO configuration.                                                #
+
+# GPIO + IRQ configuration.
 # ------------------------------------------------------------------ #
 green_btn = Pin(13, Pin.IN, Pin.PULL_UP)
 red_btn   = Pin(14, Pin.IN, Pin.PULL_UP)
-trig = Pin(15, Pin.OUT)
-echo = Pin(16, Pin.IN)
-pwm_led = PWM(Pin(17))
-pwm_led.freq(1_000)
-ping_led = Pin(18, Pin.OUT)
+ping_led  = Pin(18, Pin.OUT)
+sys_led   = Pin(17, Pin.OUT)    # Status LED for system ON/OFF.
+pir_pin   = Pin(12, Pin.IN)
+pir_sensor = PIR(12)
 
-# ------------------------------------------------------------------ #
-# Globals and constants.                                             #
-# ------------------------------------------------------------------ #
-blink_ms  = 100
-
-last_blink_ms = last_green_ms = last_red_ms = ticks_ms()
-debounce_ms   = 300
+# Attach IRQ handlers from utils
+green_btn.irq(trigger=Pin.IRQ_FALLING, handler=green_irq)  # press => system ON.
+red_btn.irq(trigger=Pin.IRQ_FALLING, handler=red_irq)      # press => system OFF.
+pir_pin.irq(trigger=Pin.IRQ_RISING | Pin.IRQ_FALLING, handler=pir_irq)  # PIR detect.
 
 
+# Hardware components via SenseFuzzPWM.
 # ------------------------------------------------------------------ #
-# Helper: distance --> PWM duty.                                     #
-# ------------------------------------------------------------------ #
-def distance_to_pwm_u16(dist_mm: int) -> int:
-    if dist_mm <= utils.min_dist:
-        return 65_535
-    if dist_mm >= utils.max_dist:
-        return 0
-    span = utils.max_dist - utils.min_dist
-    pct  = 1.0 - (dist_mm - utils.min_dist) / span
-    return int(pct * 65_535)
+ultra = Ultrasonic(15, 16)  # Ultrasonic on GPIO15/16.
+manager = MotionDistanceManager(pir_sensor, ultra, active_ms=60000)
 
-# ------------------------------------------------------------------ #
-# Ultrasonic distance.                                               #
-# ------------------------------------------------------------------ #
-def measure_distance_mm() -> int:
-    trig.low(); sleep_us(2)
-    trig.high(); sleep_us(10); trig.low()
-    pulse = time_pulse_us(echo, 1, 30_000)
-    return utils.max_dist if pulse < 0 else int(pulse * 0.1715)
+controller = FuzzyCore(input_sets, output_sets, rules, output_ranges)
+buzzer = PWM(pin=28, mode="buzzer")  # Buzzer output
 
+
+# Other constants.
 # ------------------------------------------------------------------ #
-# Start command server once.                                         #
+blink_ms = 100
+last_blink_ms = ticks_ms()
+last_alert_state = False  # track last PIR alert status
+
+
+# Start command server once.
 # ------------------------------------------------------------------ #
 cmd_srv = ss.make_cmd_server()
 
@@ -93,32 +90,54 @@ while True:
 
     wifi_watchdog(ssid, pwd)
     data_watchdog()
-    ss.poll_command(cmd_srv, pwm_led, ping_led)
+    ss.poll_command(cmd_srv, ping_led)
 
-    if utils.buttons_enabled:
-        if green_btn.value() == 0 and ticks_diff(now, last_green_ms) > debounce_ms:
-            utils.sensing_active = True
-            dbg("Green button --> sensing_active = True")
-            last_green_ms = now
-        if red_btn.value() == 0 and ticks_diff(now, last_red_ms) > debounce_ms:
-            utils.sensing_active = False
-            dbg("Red button --> sensing_active = False")
-            last_red_ms = now
-
+    # Blink ping LED briefly when PING received.
     if ping_led.value() and ticks_diff(now, last_blink_ms) > blink_ms:
         ping_led.low()
 
-    if utils.sensing_active:
-        dist = measure_distance_mm()
-        dbg(f"dist: {dist}")
-        pwm_led.duty_u16(distance_to_pwm_u16(dist))
-        ok = sc.write_line(f"distance: {dist}")
-        if ok:
-            dbg("distance sent", dist)
-    else:
-        pwm_led.duty_u16(0)
+    # Update system status LED (ON/OFF indicator)
+    sys_led.value(1 if utils.sys_on else 0)
 
-    if now % 5_000 < 50:
+    # -----------------------------
+    # System OFF => disable outputs
+    # -----------------------------
+    if not utils.sys_on:
+        buzzer.off()             # Buzzer silent.
+        last_alert_state = False # Reset PIR alert tracking.
+        #sleep_ms(100) # used before introducing lightsleep.
+        # Enter light sleep until an interrupt occurs (green button press).
+        machine.lightsleep()
+        continue
+    
+
+    # -------------------------------------
+    # System ON → handle PIR + fuzzy logic
+    # -------------------------------------
+    active, distance = manager.update()
+    dbg("manager says: ", active, distance)
+
+    # --- Alert message handling ---
+    if active != last_alert_state:
+        sc.write_line("alert: 1" if active else "alert: 0")
+        dbg(f"Sent alert: {'1' if active else '0'}")
+        last_alert_state = active
+
+    # --- Distance + buzzer control ---
+    if active and distance is not None:
+        fuzzy_out = controller.compute({"distance": distance})
+        duty = fuzzy_out["duty"]
+        freq = min(max(100, fuzzy_out["freq"]), 2000)
+        buzzer.update(freq=freq, duty=duty)
+
+        sc.write_line(f"distance: {distance}")
+        #dbg(f"distance sent: {distance} mm | duty={duty:.1f} freq={freq} Hz")
+        dbg(f"distance sent: {distance} mm")
+    else:
+        buzzer.off()
+
+    # Garbage collect every 5s.
+    if now % 5000 < 50:
         gc.collect()
 
     sleep_ms(100)

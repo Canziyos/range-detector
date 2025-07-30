@@ -21,7 +21,9 @@ public class StatusController : ControllerBase
         return Ok(new
         {
             measured = distanceState.lastDistMeasured,
-            updated = distanceState.LastUpdatedUtc
+            updated = distanceState.LastUpdatedUtc,
+            picoip = PicoEndpoint.CurrentIp ?? "0.0.0.0",
+            alert = distanceState.alertActive
         });
     }
 

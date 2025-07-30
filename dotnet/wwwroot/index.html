@@ -13,14 +13,15 @@
             margin: 0;
         }
 
-        /* Card container for all content */
+        /* Card container */
         .card {
             background: #fff;
             padding: 30px 50px;
             border-radius: 16px;
             box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
             text-align: center;
-            width: 320px;
+            width: 90%;
+            max-width: 350px;
         }
 
         h1 {
@@ -29,16 +30,18 @@
             color: #333;
         }
 
-        /* Button group */
+        /* Buttons */
         .btn-group {
             display: flex;
             gap: 10px;
             justify-content: center;
             margin-bottom: 20px;
+            flex-wrap: wrap;
         }
 
         .button {
             flex: 1;
+            min-width: 120px;
             padding: 12px;
             font-size: 1em;
             border: none;
@@ -63,19 +66,54 @@
             text-shadow: 0 0 5px rgba(0, 0, 0, 0.1);
         }
 
-        /* State indicator colors */
+        /* State indicator */
         #state {
             font-size: 1.3em;
             margin-top: 8px;
             font-weight: bold;
         }
-
         #state.running {
             color: #28a745; /* green */
         }
-
         #state.stopped {
             color: #dc3545; /* red */
+        }
+
+        /* Fancy alert */
+        #alert {
+            font-size: 1.4em;
+            font-weight: bold;
+            margin-top: 12px;
+            padding: 8px;
+            border-radius: 8px;
+            background: #ffcccc;
+            color: #dc3545;
+            display: none;
+            animation: pulse 1s infinite ease-in-out;
+        }
+
+        /* Flashing pulse animation */
+        @keyframes pulse {
+            0% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.1); opacity: 0.7; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+
+        /* Intrusion log */
+        #log {
+            margin-top: 15px;
+            font-size: 0.9em;
+            text-align: left;
+            max-height: 100px;
+            overflow-y: auto;
+            border-top: 1px solid #ddd;
+            padding-top: 8px;
+        }
+        #log div {
+            padding: 2px 0;
+        }
+        #log div:nth-child(odd) {
+            background: #f9f9f9;
         }
     </style>
 </head>
@@ -88,6 +126,12 @@
         </div>
         <div id="distance">Distance: N/A</div>
         <div id="state">State: Unknown</div>
+        <div id="alert">&#128680; INTRUDER DETECTED!</div>
+        <div id="log"></div>
+        <audio id="alertSound" preload="auto">
+            <source src="https://actions.google.com/sounds/v1/alarms/alarm_clock.ogg" type="audio/ogg">
+            <source src="https://actions.google.com/sounds/v1/alarms/beep_short.ogg" type="audio/ogg">
+        </audio>
     </div>
 
     <script>
@@ -95,43 +139,40 @@
         const e_btn = document.getElementById("off_cmd");
         const distEl = document.getElementById("distance");
         const stateEl = document.getElementById("state");
+        const alertEl = document.getElementById("alert");
+        const logEl = document.getElementById("log");
+        const alertSound = document.getElementById("alertSound");
 
-        // Handle START button
+        let lastAlertActive = false;
+
+        // START button
         s_btn.addEventListener("click", () => {
             fetch("/status/sendcmd?cmd=START", { method: "POST" })
-                .then(res => {
-                    alert(res.ok ? "Success: Command Sent!" : "Failure: Command not sent!");
-                })
-                .catch(err => {
-                    alert("Error: " + err.message);
-                });
+                .then(res => alert(res.ok ? "Success: Command Sent!" : "Failure: Command not sent!"))
+                .catch(err => alert("Error: " + err.message));
         });
 
-        // Handle STOP button
+        // STOP button
         e_btn.addEventListener("click", () => {
             fetch("/status/sendcmd?cmd=STOP", { method: "POST" })
-                .then(res => {
-                    alert(res.ok ? "Success: Command sent!" : "Failure: Command not sent");
-                })
-                .catch(err => {
-                    alert("Error: " + err.message);
-                });
+                .then(res => alert(res.ok ? "Success: Command Sent!" : "Failure: Command not sent!"))
+                .catch(err => alert("Error: " + err.message));
         });
 
-        // Poll backend every second for status updates
+        // Poll backend every second
         setInterval(() => {
             fetch("/status/getstatus")
                 .then(res => res.json())
                 .then(data => {
-                    // Update distance display
+                    // Update distance
                     distEl.innerText = `Distance: ${data.measured} mm`;
 
-                    // Calculate freshness of data
+                    // Freshness check
                     const updatedMs = new Date(data.updated).getTime();
                     const nowMs = Date.now();
                     const age = nowMs - updatedMs;
 
-                    // Update state text + color class
+                    // State indicator
                     if (age > 2000) {
                         stateEl.innerText = "State: Stopped";
                         stateEl.className = "stopped";
@@ -139,11 +180,34 @@
                         stateEl.innerText = "State: Running";
                         stateEl.className = "running";
                     }
+
+                    // Alert logic
+                    if (data.alert && age <= 2000) {
+                        // Show alert
+                        alertEl.style.display = "block";
+
+                        // Play sound only on new alert trigger
+                        if (!lastAlertActive) {
+                            alertSound.currentTime = 0;
+                            alertSound.play().catch(() => {}); // ignore autoplay block
+                            // Add to log
+                            const timestamp = new Date().toLocaleTimeString();
+                            const entry = document.createElement("div");
+                            entry.textContent = `Intrusion at ${timestamp}`;
+                            logEl.prepend(entry);
+                        }
+
+                        lastAlertActive = true;
+                    } else {
+                        alertEl.style.display = "none";
+                        lastAlertActive = false;
+                    }
                 })
                 .catch(() => {
                     distEl.innerText = "Distance: N/A";
                     stateEl.innerText = "State: Unknown";
                     stateEl.className = "";
+                    alertEl.style.display = "none";
                 });
         }, 1000);
     </script>
