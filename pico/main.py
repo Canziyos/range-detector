@@ -9,13 +9,12 @@ import socket_server as ss
 from utils import dbg, green_irq, red_irq, pir_irq
 import utils
 
-# SenseFuzzPWM imports
-from sensefuzzpwm.input.sensors import PIR, Ultrasonic
-from sensefuzzpwm.input.interaction import MotionDistanceManager
-from sensefuzzpwm.output.pwm import PWM
-from sensefuzzpwm.fuzzy_logic.fuzzy_core import FuzzyCore
-from sensefuzzpwm.fuzzy_logic.fuzzy_config import input_sets, output_sets, output_ranges, rules
-
+# FuzzyDistancePWM runtime imports
+from input.sensors import PIR, Ultrasonic
+from input.interaction import MotionDistanceManager
+from output.pwm import PWM
+from fuzz.fuzzy_core import FuzzyCore
+from fuzz.fuzzy_config import input_sets, output_sets, output_ranges, rules
 ssid = boot.SSID
 pwd = boot.PWD
 
@@ -63,7 +62,7 @@ red_btn.irq(trigger=Pin.IRQ_FALLING, handler=red_irq)      # press => system OFF
 pir_pin.irq(trigger=Pin.IRQ_RISING | Pin.IRQ_FALLING, handler=pir_irq)  # PIR detect.
 
 
-# Hardware components via SenseFuzzPWM.
+# Hardware components.
 # ------------------------------------------------------------------ #
 ultra = Ultrasonic(15, 16)  # Ultrasonic on GPIO15/16.
 manager = MotionDistanceManager(pir_sensor, ultra, active_ms=60000)
@@ -75,7 +74,6 @@ buzzer = PWM(pin=28, mode="buzzer")  # Buzzer output
 # Other constants.
 # ------------------------------------------------------------------ #
 blink_ms = 100
-last_blink_ms = ticks_ms()
 last_alert_state = False  # track last PIR alert status
 
 
@@ -93,7 +91,7 @@ while True:
     ss.poll_command(cmd_srv, ping_led)
 
     # Blink ping LED briefly when PING received.
-    if ping_led.value() and ticks_diff(now, last_blink_ms) > blink_ms:
+    if ping_led.value() and ticks_diff(now, ss.get_last_ping_time()) > blink_ms:
         ping_led.low()
 
     # Update system status LED (ON/OFF indicator)
@@ -103,11 +101,9 @@ while True:
     # System OFF => disable outputs
     # -----------------------------
     if not utils.sys_on:
-        buzzer.off()             # Buzzer silent.
-        last_alert_state = False # Reset PIR alert tracking.
-        #sleep_ms(100) # used before introducing lightsleep.
-        # Enter light sleep until an interrupt occurs (green button press).
-        machine.lightsleep()
+        buzzer.off()
+        last_alert_state = False
+        sleep_ms(100)
         continue
     
 

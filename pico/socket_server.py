@@ -30,6 +30,7 @@ def make_cmd_server(port: int = 1234):
 
 # One persistent client socket.
 _sock = None
+_rx_buffer = ""
 
 # Poll each main-loop tick.
 # ------------------------ #
@@ -39,7 +40,7 @@ def poll_command(server_sock, ping_led):
     any command lines. Drops the socket on error and waits for the
     next accept. Never blocks.
     """
-    global _sock
+    global _sock, _rx_buffer
 
     # 1. Accept phase.
     if _sock is None:
@@ -61,12 +62,17 @@ def poll_command(server_sock, ping_led):
     # 2. Read phase (non-blocking).
     try:
         data = _sock.recv(64)
-        if not data:                # Client closed.
+
+        if not data:
             _sock.close()
             _sock = None
+            _rx_buffer = ""
             return
 
-        for raw in data.decode().splitlines():
+        _rx_buffer += data.decode()
+
+        while "\n" in _rx_buffer:
+            raw, _rx_buffer = _rx_buffer.split("\n", 1)
             cmd = raw.strip().upper()
 
             if cmd == "START":
@@ -80,7 +86,6 @@ def poll_command(server_sock, ping_led):
             elif cmd == "PING":
                 update_ping_time()
                 ping_led.value(1)
-                utils.last_blink_ms = time.ticks_ms()
                 dbg("PING received")
 
             # --- future extensions.
@@ -111,3 +116,4 @@ def poll_command(server_sock, ping_led):
             except Exception:
                 pass
             _sock = None
+            _rx_buffer = ""

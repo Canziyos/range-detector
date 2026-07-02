@@ -1,4 +1,4 @@
-from time import ticks_ms
+from time import ticks_ms, ticks_diff
 
 
 # System configuration / thresholds
@@ -30,7 +30,7 @@ def green_irq(pin):
     global last_green_press, sys_on
     now = ticks_ms()
     # Debounce.
-    if ticks_ms() - last_green_press < debounce_ms:
+    if ticks_diff(now, last_green_press) < debounce_ms:
         return
     last_green_press = now
     if not sys_on:
@@ -40,7 +40,7 @@ def green_irq(pin):
 def red_irq(pin):
     global last_red_press, sys_on
     now = ticks_ms()
-    if ticks_ms() - last_red_press < debounce_ms:
+    if ticks_diff(now, last_red_press) < debounce_ms:
         return
     last_red_press = now
     if sys_on:
@@ -56,7 +56,7 @@ def pir_irq(pin):
 
     now = ticks_ms()
     # Debounce for PIR  (should be reconsidewred)
-    if ticks_ms() - last_pir_trigger < 200:
+    if ticks_diff(now, last_pir_trigger) < 200:
         return
     last_pir_trigger = now
 
